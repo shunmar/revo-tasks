@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>REVO TASKS</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --black:#060708; --deep:#0E0F12; --charcoal:#16181D; --panel:#1C1F26; --panelgold:#221F18;
+  --gold:#C9A24B; --goldsoft:#DCC489; --white:#F6F4EF; --muted:#9AA0A8; --faint:#6E747C;
+  --line:#23262E;
+  --sans:"Yu Gothic","YuGothic","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  --mincho:"Yu Mincho","YuMincho","Hiragino Mincho ProN",serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--deep);color:var(--white);font-family:var(--sans);-webkit-font-smoothing:antialiased}
+body{min-height:100vh;line-height:1.6}
+button{font-family:var(--sans);cursor:pointer;border:none;background:none;color:inherit}
+input,select{font-family:var(--sans)}
+::selection{background:var(--gold);color:var(--black)}
+
+/* ---- header ---- */
+.topbar{display:flex;align-items:center;justify-content:space-between;
+  padding:22px 40px;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20;
+  background:rgba(14,15,18,.86);backdrop-filter:blur(10px)}
+.brand{display:flex;align-items:baseline;gap:12px}
+.brand .r{font-family:var(--mincho);font-size:22px;letter-spacing:.14em;color:var(--white)}
+.brand .t{font-size:11px;letter-spacing:.42em;color:var(--gold);text-transform:uppercase}
+.topright{display:flex;align-items:center;gap:16px}
+.userpick{background:var(--charcoal);color:var(--white);border:1px solid var(--line);
+  border-radius:8px;padding:9px 14px;font-size:13px;letter-spacing:.04em}
+.userpick:focus{outline:1px solid var(--gold)}
+.status{display:flex;align-items:center;gap:7px;font-size:11px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--faint)}
+.gear{font-size:12px;letter-spacing:.06em;color:var(--muted);border:1px solid var(--line);
+  border-radius:8px;padding:9px 13px}
+.gear:hover{color:var(--white);border-color:var(--muted)}
+
+/* ---- settings modal ---- */
+.modal-back{position:fixed;inset:0;background:rgba(6,7,8,.72);backdrop-filter:blur(4px);
+  display:flex;align-items:flex-start;justify-content:center;padding:60px 20px;z-index:80;overflow-y:auto}
+.modal-back[hidden]{display:none}
+.modal{background:var(--charcoal);border:1px solid var(--line);border-radius:16px;
+  width:100%;max-width:520px;padding:28px;box-shadow:0 24px 70px rgba(0,0,0,.6)}
+.modal-head{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:6px}
+.modal-eyebrow{font-size:10px;letter-spacing:.34em;color:var(--gold);text-transform:uppercase}
+.modal-title{font-family:var(--mincho);font-size:24px;margin-top:6px}
+.modal-note{font-size:12px;color:var(--muted);line-height:1.7;margin:8px 0 22px}
+.modal-note b{color:var(--goldsoft);font-weight:500}
+.memrow{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.memname{flex:1;background:var(--deep);border:1px solid var(--line);border-radius:9px;
+  padding:12px 14px;color:var(--white);font-size:15px}
+.memname:focus{outline:none;border-color:var(--gold)}
+.memdel{color:var(--faint);font-size:15px;width:40px;height:40px;border-radius:9px;border:1px solid var(--line)}
+.memdel:hover{color:var(--white);border-color:var(--muted)}
+.addrow{display:flex;gap:10px;margin-top:20px;padding-top:20px;border-top:1px solid var(--line)}
+.addrow input{flex:1;background:var(--deep);border:1px solid var(--line);border-radius:9px;
+  padding:12px 14px;color:var(--white);font-size:15px}
+.addrow input:focus{outline:none;border-color:var(--gold)}
+.data-sec{margin-top:24px;padding-top:20px;border-top:1px solid var(--line)}
+.data-head{font-size:13px;letter-spacing:.06em;color:var(--white);margin-bottom:6px}
+.data-note{font-size:12px;color:var(--muted);line-height:1.7;margin-bottom:14px}
+.data-btns{display:flex;gap:10px;flex-wrap:wrap}
+
+.status{display:none}
+@media(min-width:721px){.status{display:flex}}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--faint)}
+.dot.live{background:var(--gold);box-shadow:0 0 0 3px rgba(201,162,75,.16)}
+
+/* ---- tabs ---- */
+.tabs{display:flex;gap:34px;padding:0 40px;border-bottom:1px solid var(--line);
+  overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{padding:20px 2px;position:relative;color:var(--faint);letter-spacing:.02em;flex:0 0 auto}
+.tab .en{font-size:10px;letter-spacing:.34em;display:block;margin-bottom:5px;text-transform:uppercase}
+.tab .jp{font-size:15px;font-weight:500}
+.tab.active{color:var(--white)}
+.tab.active::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--gold)}
+.tab .badge{position:absolute;top:16px;right:-16px;font-size:10px;color:var(--gold);letter-spacing:.1em}
+
+/* ---- layout ---- */
+.wrap{max-width:1180px;margin:0 auto;padding:44px 40px 120px}
+.section-head{position:relative;margin-bottom:26px}
+.ghost{position:absolute;top:-46px;right:-6px;font-family:var(--mincho);font-size:150px;
+  line-height:1;color:#14161B;user-select:none;pointer-events:none;z-index:0}
+.eyebrow{font-size:10px;letter-spacing:.4em;color:var(--gold);text-transform:uppercase;position:relative;z-index:1}
+.htitle{font-family:var(--mincho);font-size:30px;letter-spacing:.04em;margin-top:8px;position:relative;z-index:1}
+.hsub{color:var(--muted);font-size:13px;margin-top:8px;max-width:640px;position:relative;z-index:1}
+.hsub b{color:var(--goldsoft);font-weight:500}
+
+/* ---- capture ---- */
+.capture{display:flex;gap:10px;margin:8px 0 34px}
+.capture input{flex:1;background:var(--charcoal);border:1px solid var(--line);border-radius:10px;
+  padding:16px 18px;color:var(--white);font-size:15px}
+.capture input::placeholder{color:var(--faint)}
+.capture input:focus{outline:none;border-color:var(--gold)}
+.capture button{background:var(--white);color:var(--black);border-radius:10px;padding:0 24px;
+  font-weight:600;font-size:14px;letter-spacing:.02em}
+.capture button:hover{background:var(--goldsoft)}
+
+/* ---- cards ---- */
+.card{background:var(--charcoal);border-radius:14px;padding:22px 24px;margin-bottom:14px;
+  box-shadow:0 8px 30px rgba(0,0,0,.28)}
+.card.pending{background:var(--panel)}
+.card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.ctitle{font-size:17px;font-weight:500;letter-spacing:.01em}
+.cmeta{font-size:11px;color:var(--faint);margin-top:5px;letter-spacing:.08em}
+.owner-pill{font-size:10px;letter-spacing:.14em;color:var(--muted);border:1px solid var(--line);
+  border-radius:20px;padding:4px 11px;white-space:nowrap}
+
+/* ---- triage controls ---- */
+.triage{margin-top:20px;padding-top:20px;border-top:1px solid var(--line);
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:18px}
+.field label{display:block;font-size:10px;letter-spacing:.18em;color:var(--faint);
+  text-transform:uppercase;margin-bottom:9px}
+.seg{display:flex;gap:5px}
+.seg button{flex:1;border:1px solid var(--line);border-radius:7px;padding:8px 0;
+  font-size:13px;color:var(--muted);background:var(--deep);transition:.12s}
+.seg button.on{background:var(--white);color:var(--black);border-color:var(--white);font-weight:600}
+.seg.gold button.on{background:var(--gold);color:var(--black);border-color:var(--gold)}
+.modesel,.owner-sel{width:100%;background:var(--deep);color:var(--white);border:1px solid var(--line);
+  border-radius:7px;padding:9px 11px;font-size:13px}
+.triage-foot{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;
+  gap:16px;flex-wrap:wrap;margin-top:2px}
+.scorebox{display:flex;align-items:baseline;gap:10px}
+.scorebox .lab{font-size:10px;letter-spacing:.2em;color:var(--faint);text-transform:uppercase}
+.scorebox .val{font-family:var(--mincho);font-size:34px;color:var(--goldsoft);line-height:1}
+.scorebox .na{font-size:13px;color:var(--faint)}
+.actions{display:flex;gap:10px;flex-wrap:wrap}
+.btn{border:1px solid var(--line);border-radius:8px;padding:10px 18px;font-size:13px;
+  color:var(--white);background:var(--panel);letter-spacing:.02em}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--gold);color:var(--black);border-color:var(--gold);font-weight:600}
+.btn.primary:hover{background:var(--goldsoft)}
+.btn.ghostbtn{background:transparent;color:var(--faint)}
+.btn.ghostbtn:hover{color:var(--white)}
+.bigrock-toggle{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);cursor:pointer;user-select:none}
+.bigrock-toggle .box{width:16px;height:16px;border:1px solid var(--faint);border-radius:4px;display:grid;place-items:center;font-size:11px}
+.bigrock-toggle.on .box{background:var(--gold);border-color:var(--gold);color:var(--black)}
+.bigrock-toggle.on{color:var(--goldsoft)}
+
+/* ---- today ---- */
+.slabel{display:flex;align-items:center;gap:12px;margin:34px 0 16px;font-size:11px;
+  letter-spacing:.24em;color:var(--faint);text-transform:uppercase}
+.slabel::after{content:"";flex:1;height:1px;background:var(--line)}
+.slabel .cap{color:var(--muted)}
+.trow{display:flex;align-items:center;gap:18px;background:var(--charcoal);border-radius:12px;
+  padding:16px 20px;margin-bottom:11px}
+.trow.rock{background:var(--panelgold);box-shadow:inset 0 0 0 1px rgba(201,162,75,.5)}
+.trow.over{opacity:.5}
+.rank{font-family:var(--mincho);font-size:20px;color:var(--faint);width:26px;text-align:center}
+.trow.rock .rank{color:var(--gold)}
+.tbody{flex:1;min-width:0}
+.tbody .tt{font-size:16px;font-weight:500}
+.tbody .tm{font-size:11px;color:var(--faint);margin-top:4px;letter-spacing:.06em;display:flex;gap:12px;flex-wrap:wrap}
+.modechip{color:var(--muted)}
+.rockflag{font-size:10px;letter-spacing:.2em;color:var(--gold)}
+.tscore{font-family:var(--mincho);font-size:26px;color:var(--goldsoft);min-width:52px;text-align:right}
+.tdone{border:1px solid var(--line);border-radius:8px;width:38px;height:38px;display:grid;place-items:center;
+  color:var(--faint);font-size:16px}
+.tdone:hover{border-color:var(--gold);color:var(--gold)}
+
+/* ---- team ---- */
+.teamgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px}
+.teamcol{background:var(--charcoal);border-radius:14px;padding:20px;box-shadow:0 8px 30px rgba(0,0,0,.24)}
+.teamcol h3{font-size:14px;letter-spacing:.06em;display:flex;justify-content:space-between;align-items:baseline}
+.teamcol h3 .n{font-size:11px;color:var(--faint);letter-spacing:.12em}
+.teamcol .div{height:1px;background:var(--line);margin:14px 0}
+.ttask{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid #191C22}
+.ttask:last-child{border-bottom:none}
+.ttask .n{font-size:13px;color:var(--white)}
+.ttask.rock .n{color:var(--goldsoft)}
+.ttask .s{font-family:var(--mincho);font-size:15px;color:var(--gold)}
+.teamempty{font-size:12px;color:var(--faint);padding:6px 0}
+.teamctl{display:flex;justify-content:flex-end;margin-bottom:18px}
+
+/* ---- empty ---- */
+.empty{text-align:center;padding:70px 20px;color:var(--faint)}
+.empty .mk{font-family:var(--mincho);font-size:15px;color:var(--muted);margin-bottom:8px}
+.empty .sub{font-size:13px}
+
+.formula{font-size:11px;color:var(--faint);letter-spacing:.04em;margin-top:14px;
+  font-family:var(--mincho)}
+.formula b{color:var(--goldsoft)}
+
+/* ---- flexible edit / accordion ---- */
+.titem{margin-bottom:11px}
+.titem .card{margin-bottom:0}
+.trow.open{border-bottom-left-radius:0;border-bottom-right-radius:0;margin-bottom:0}
+.iconbtn{color:var(--faint);font-size:13px;padding:5px 8px;border-radius:6px;background:transparent}
+.iconbtn:hover{color:var(--white);background:var(--panel)}
+.chev{color:var(--faint);font-size:13px;width:30px;height:30px;border-radius:7px}
+.chev:hover{color:var(--gold);background:var(--panel)}
+.renameinp{background:var(--deep);border:1px solid var(--gold);border-radius:6px;color:var(--white);
+  font-size:16px;padding:6px 10px;width:100%;font-family:var(--sans)}
+.title-row{display:flex;align-items:center;gap:8px}
+.exp-panel{background:var(--charcoal);border-radius:0 0 12px 12px;padding:4px 20px 20px;margin-bottom:0}
+.exp-panel .triage{margin-top:16px;padding-top:16px}
+
+/* ---- done tab ---- */
+.donerow{display:flex;align-items:center;gap:16px;background:var(--charcoal);border-radius:12px;
+  padding:15px 20px;margin-bottom:10px}
+.dcheck{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;
+  background:var(--panelgold);color:var(--gold);font-size:14px}
+.tt.done span{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--faint)}
+.donerow.trash .dcheck{background:var(--panel);color:var(--faint)}
+.fromchip{color:var(--gold);letter-spacing:.06em}
+.tomark{color:var(--goldsoft)}
+.hbadge{font-size:10px;letter-spacing:.16em;padding:5px 12px;border-radius:20px;white-space:nowrap}
+.hbadge.muted{color:var(--muted);border:1px solid var(--line)}
+.hbadge.gold{color:var(--gold);border:1px solid rgba(201,162,75,.45)}
+.hbadge.done{color:var(--black);background:var(--goldsoft);font-weight:600}
+
+/* ---- toast ---- */
+#toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(20px);
+  background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 20px;
+  display:flex;align-items:center;gap:18px;font-size:14px;color:var(--white);
+  box-shadow:0 14px 46px rgba(0,0,0,.55);opacity:0;pointer-events:none;transition:.24s;z-index:60}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}
+#toast button{color:var(--gold);font-weight:600;font-size:13px;letter-spacing:.06em}
+
+@media(max-width:720px){
+  .topbar,.tabs,.wrap{padding-left:20px;padding-right:20px}
+  .tabs{gap:24px}
+  .ghost{font-size:96px;top:-28px}
+  .htitle{font-size:24px}
+}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="brand"><span class="r">REVO</span><span class="t">Tasks</span></div>
+  <div class="topright">
+    <select class="userpick" id="userpick"></select>
+    <button class="gear" id="opensettings" title="メンバー設定" aria-label="メンバー設定">⚙ 設定</button>
+    <div class="status"><span class="dot" id="statusdot"></span><span id="statustext">demo</span></div>
+  </div>
+</div>
+
+<div class="modal-back" id="settings" hidden>
+  <div class="modal">
+    <div class="modal-head">
+      <div><div class="modal-eyebrow">Members</div><h2 class="modal-title">メンバー設定</h2></div>
+      <button class="iconbtn" id="closesettings" aria-label="閉じる">✕</button>
+    </div>
+    <div class="modal-note">ここで編集した名前は<b>全員の画面</b>に反映される。名前を変えると、その人の担当・振ったタスクの表示も自動で追従する。</div>
+    <div id="memberlist"></div>
+    <div class="addrow">
+      <input id="newmember" placeholder="名前を追加…（例：田中）" autocomplete="off">
+      <button class="btn primary" id="addmember">追加</button>
+    </div>
+    <div class="data-sec">
+      <div class="data-head">データのバックアップ</div>
+      <div class="data-note">「書き出し」で今の中身をファイルに保存。URLや端末が変わっても、そのファイルを「読み込み」すれば丸ごと戻せる。</div>
+      <div class="data-btns">
+        <button class="btn" id="exportbtn">書き出し（保存）</button>
+        <button class="btn" id="importbtn">読み込み（復元）</button>
+        <input type="file" id="importfile" accept="application/json,.json" hidden>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="tabs">
+  <button class="tab active" data-view="inbox"><span class="en">Inbox</span><span class="jp">受信箱</span><span class="badge" id="badge-inbox"></span></button>
+  <button class="tab" data-view="today"><span class="en">Today</span><span class="jp">今日やる</span><span class="badge" id="badge-today"></span></button>
+  <button class="tab" data-view="team"><span class="en">Team</span><span class="jp">チーム全体</span></button>
+  <button class="tab" data-view="handoff"><span class="en">Handed off</span><span class="jp">渡した</span><span class="badge" id="badge-handoff"></span></button>
+  <button class="tab" data-view="done"><span class="en">Done</span><span class="jp">完了</span><span class="badge" id="badge-done"></span></button>
+  <button class="tab" data-view="trash"><span class="en">Trash</span><span class="jp">ゴミ箱</span><span class="badge" id="badge-trash"></span></button>
+</div>
+
+<div class="wrap" id="app"></div>
+
+<script>
+/* ============ 設定（ここを編集） ============ */
+const CONFIG = {
+  SUPABASE_URL: "https://vmyhvrsujzslbbilmqea.supabase.co",        // ← Supabaseの Project URL を貼る（空ならデモモード）
+  SUPABASE_ANON_KEY: "sb_publishable_lNSMcArC-ycFzHQuahVp9w_HScYpplK",   // ← Supabaseの anon public key を貼る
+  DEFAULT_MEMBERS: ["Shunya", "幹部A", "幹部B", "幹部C"],  // 初回だけ使う初期名簿。実際の編集はアプリ内「設定」から
+  TODAY_DEEP_LIMIT: 3,     // 深い仕事の1日上限
+  TODAY_LIGHT_LIMIT: 5,    // 軽い仕事の1日上限
+};
+
+const MODES = [
+  { id:"legal",    label:"法務・契約" },
+  { id:"ops",      label:"店舗オペ" },
+  { id:"people",   label:"採用・育成" },
+  { id:"strategy", label:"戦略・開発" },
+  { id:"creative", label:"制作・発信" },
+];
+const modeLabel = id => (MODES.find(m=>m.id===id)||{}).label || "未分類";
+
+const SELF_LABEL   = {1:"誰でも可", 2:"自分が速い", 3:"自分だけ"};
+const EFFORT_LABEL = {1:"〜15分", 2:"〜1時間", 3:"〜半日", 4:"〜1日", 5:"数日"};
+
+/* ============ データ層（Supabase / デモ 両対応） ============ */
+const LIVE = !!(CONFIG.SUPABASE_URL && CONFIG.SUPABASE_ANON_KEY);
+let sb = null;
+if (LIVE) { try { sb = supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY); } catch(e){ console.error(e); } }
+
+const DEMO_KEY = "revotasks_demo_v4";
+function demoLoad(){
+  try{ const r = localStorage.getItem(DEMO_KEY); if(r) return JSON.parse(r); }catch(e){}
+  const now = Date.now();
+  const seed = [
+    { title:"BG Partnersサブリース契約の最終レビュー", owner:"Shunya", assignee:null, status:"today",
+      impact:5, urgency:5, self_factor:3, effort:3, mode:"legal", big_rock:true },
+    { title:"EXCIA横浜の指名偏重を是正する配分案", owner:"Shunya", assignee:null, status:"today",
+      impact:5, urgency:3, self_factor:3, effort:2, mode:"strategy", big_rock:false },
+    { title:"店販ラダーの初期メニュー3本を決める", owner:"Shunya", assignee:null, status:"today",
+      impact:4, urgency:3, self_factor:2, effort:1, mode:"ops", big_rock:false },
+    { title:"Force.加盟募集LPの文言確認", owner:"Shunya", assignee:null, status:"inbox",
+      impact:3, urgency:2, self_factor:2, effort:1, mode:"creative", big_rock:false },
+    { title:"広島アシスタント求人の応募返信テンプレ", owner:"Shunya", assignee:"幹部A", status:"today",
+      impact:3, urgency:4, self_factor:1, effort:1, mode:"people", big_rock:false,
+      assigned_by:"Shunya", assigned_at:new Date(now - 5400000).toISOString() },
+    { title:"来月の全店朝礼テーマ案を集める", owner:"Shunya", assignee:null, status:"inbox",
+      impact:null, urgency:null, self_factor:null, effort:null, mode:null, big_rock:false },
+    { title:"6月度インセンティブ資料の作成", owner:"Shunya", assignee:null, status:"done",
+      impact:3, urgency:2, self_factor:2, effort:2, mode:"creative", big_rock:false,
+      done_at:new Date(now - 3600000).toISOString() },
+    { title:"（重複）サブリース契約の下書き", owner:"Shunya", assignee:null, status:"trash",
+      impact:null, urgency:null, self_factor:null, effort:null, mode:"legal", big_rock:false,
+      prev_status:"inbox", trashed_at:new Date(now - 7200000).toISOString() },
+  ].map((t,i)=>({ id:crypto.randomUUID(), created_at:new Date(now - i*60000).toISOString(), done_at:null, ...t }));
+  demoSave(seed); return seed;
+}
+function demoSave(arr){ try{ localStorage.setItem(DEMO_KEY, JSON.stringify(arr)); }catch(e){} }
+
+let tasks = [];
+
+async function fetchTasks(){
+  if(LIVE && sb){
+    const { data, error } = await sb.from("tasks").select("*");
+    if(error){ console.error(error); return; }
+    tasks = data || [];
+  } else {
+    tasks = demoLoad();
+  }
+}
+async function createTask(t){
+  if(LIVE && sb){ const { error } = await sb.from("tasks").insert(t); if(error) console.error(error); }
+  else { const all = demoLoad(); all.unshift({ id:crypto.randomUUID(), created_at:new Date().toISOString(), done_at:null, ...t }); demoSave(all); }
+  await refresh();
+}
+async function patchTask(id, patch){
+  if(LIVE && sb){ const { error } = await sb.from("tasks").update(patch).eq("id",id); if(error) console.error(error); }
+  else { const all = demoLoad(); const i = all.findIndex(x=>x.id===id); if(i>=0){ all[i] = {...all[i], ...patch}; demoSave(all); } }
+  await refresh();
+}
+async function deleteTask(id){
+  if(LIVE && sb){ const { error } = await sb.from("tasks").delete().eq("id",id); if(error) console.error(error); }
+  else { demoSave(demoLoad().filter(x=>x.id!==id)); }
+  expanded.delete(id);
+  await refresh();
+}
+async function trashTask(id){
+  const t = tasks.find(x=>x.id===id) || {};
+  const prev = t.status || "inbox";
+  expanded.delete(id);
+  await patchTask(id, { status:"trash", prev_status:prev, trashed_at:new Date().toISOString() });
+  showToast("ゴミ箱に移動", ()=> patchTask(id, { status:prev, prev_status:null, trashed_at:null }));
+}
+async function untrashTask(id){
+  const t = tasks.find(x=>x.id===id) || {};
+  await patchTask(id, { status: t.prev_status || "inbox", prev_status:null, trashed_at:null });
+}
+async function emptyTrash(){
+  const ids = tasks.filter(t=>t.status==="trash" && responsibleOf(t)===currentUser).map(t=>t.id);
+  if(!ids.length) return;
+  if(!confirm(`ゴミ箱の ${ids.length} 件を完全に削除する？（元に戻せません）`)) return;
+  if(LIVE && sb){ const { error } = await sb.from("tasks").delete().in("id",ids); if(error) console.error(error); }
+  else { demoSave(demoLoad().filter(x=>!ids.includes(x.id))); }
+  await refresh();
+}
+async function purgeOldTrash(){
+  const cutoff = Date.now() - 30*24*3600*1000;
+  const old = tasks.filter(t=>t.status==="trash" && t.trashed_at && new Date(t.trashed_at).getTime() < cutoff).map(t=>t.id);
+  if(!old.length) return false;
+  if(LIVE && sb){ const { error } = await sb.from("tasks").delete().in("id",old); if(error) console.error(error); }
+  else { demoSave(demoLoad().filter(x=>!old.includes(x.id))); }
+  return true;
+}
+async function completeTask(id){
+  await patchTask(id, { status:"done", done_at:new Date().toISOString() });
+  showToast("完了にした", ()=> patchTask(id, { status:"today", done_at:null }));
+}
+async function handoffTask(id, to){
+  const t = tasks.find(x=>x.id===id) || {};
+  const prev = { assignee:t.assignee||null, assigned_by:t.assigned_by||null, assigned_at:t.assigned_at||null, status:t.status };
+  expanded.delete(id);
+  await patchTask(id, { assignee:to, assigned_by:currentUser, assigned_at:new Date().toISOString(), status:"today" });
+  showToast(`${to} に渡した`, ()=> patchTask(id, prev));
+}
+async function takeBack(id){
+  await patchTask(id, { assignee:null, assigned_by:null, assigned_at:null, status:"inbox" });
+}
+
+/* ---- 取り消しトースト ---- */
+let toastTimer = null;
+function showToast(msg, undoFn){
+  let el = document.getElementById("toast");
+  if(!el){ el = document.createElement("div"); el.id = "toast"; document.body.appendChild(el); }
+  el.innerHTML = `<span>${esc(msg)}</span>` + (undoFn ? `<button id="toastundo">取り消す</button>` : "");
+  el.className = "show";
+  if(undoFn) el.querySelector("#toastundo").onclick = ()=>{ undoFn(); hideToast(); };
+  clearTimeout(toastTimer); toastTimer = setTimeout(hideToast, 6000);
+}
+function hideToast(){ const el = document.getElementById("toast"); if(el) el.className = ""; }
+
+/* ---- インライン改名 ---- */
+function startRename(node, id){
+  const holder = node.querySelector("[data-title]"); if(!holder) return;
+  const cur = (tasks.find(x=>x.id===id)||{}).title || "";
+  holder.innerHTML = `<input class="renameinp" value="${esc(cur)}">`;
+  const inp = holder.querySelector("input"); inp.focus(); inp.select();
+  let done = false;
+  const save = ()=>{ if(done) return; done = true; const v = inp.value.trim();
+    if(v && v!==cur) patchTask(id,{title:v}); else render(); };
+  inp.onkeydown = e=>{ if(e.key==="Enter"){ e.preventDefault(); save(); } if(e.key==="Escape"){ done=true; render(); } };
+  inp.onblur = save;
+}
+
+/* ============ メンバー（名簿） ============ */
+const MEMBERS_KEY = "revotasks_members_v1";
+let members = [];                       // [{id, name}]
+const memberNames = () => members.map(m=>m.name);
+function ensureUser(){ if(!memberNames().includes(currentUser)) currentUser = memberNames()[0] || ""; }
+
+async function fetchMembers(){
+  if(LIVE && sb){
+    let { data, error } = await sb.from("members").select("*").order("sort");
+    if(error){ console.error(error); return; }
+    if(!data || !data.length){
+      await sb.from("members").insert(CONFIG.DEFAULT_MEMBERS.map((name,i)=>({ name, sort:i })));
+      ({ data } = await sb.from("members").select("*").order("sort"));
+    }
+    members = data || [];
+  } else {
+    try{ const r = localStorage.getItem(MEMBERS_KEY); members = r ? JSON.parse(r) : []; }catch(e){ members = []; }
+    if(!members.length){ members = CONFIG.DEFAULT_MEMBERS.map((name,i)=>({ id:crypto.randomUUID(), name, sort:i })); saveMembers(); }
+  }
+}
+function saveMembers(){ try{ localStorage.setItem(MEMBERS_KEY, JSON.stringify(members)); }catch(e){} }
+async function refreshMembers(){ await fetchMembers(); await fetchTasks(); ensureUser(); renderMembers(); initUserPicker(); render(); }
+
+async function addMember(name){
+  name = (name||"").trim(); if(!name) return;
+  if(memberNames().includes(name)){ alert("同じ名前が既にあります"); return; }
+  if(LIVE && sb){ await sb.from("members").insert({ name, sort:members.length }); }
+  else { members.push({ id:crypto.randomUUID(), name, sort:members.length }); saveMembers(); }
+  await refreshMembers();
+}
+async function renameMember(id, newName){
+  newName = (newName||"").trim(); if(!newName) return;
+  const m = members.find(x=>x.id===id); if(!m || m.name===newName) return;
+  if(memberNames().includes(newName)){ alert("同じ名前が既にあります"); renderMembers(); return; }
+  const oldName = m.name;
+  if(LIVE && sb){
+    await sb.from("members").update({ name:newName }).eq("id", id);
+    await sb.from("tasks").update({ owner:newName }).eq("owner", oldName);
+    await sb.from("tasks").update({ assignee:newName }).eq("assignee", oldName);
+    await sb.from("tasks").update({ assigned_by:newName }).eq("assigned_by", oldName);
+  } else {
+    m.name = newName; saveMembers();
+    const all = demoLoad();
+    all.forEach(t=>{ if(t.owner===oldName) t.owner=newName; if(t.assignee===oldName) t.assignee=newName; if(t.assigned_by===oldName) t.assigned_by=newName; });
+    demoSave(all);
+  }
+  if(currentUser===oldName){ currentUser=newName; localStorage.setItem("revotasks_user", currentUser); }
+  await refreshMembers();
+}
+async function removeMember(id){
+  const m = members.find(x=>x.id===id); if(!m) return;
+  const name = m.name;
+  if(members.length<=1){ alert("最低1人は必要です"); return; }
+  if(tasks.some(t=> t.owner===name || t.assignee===name || t.assigned_by===name)){
+    alert(`「${name}」にはタスクが紐づいているので削除できません。\n先に振り分けや担当を変えてください。`); return;
+  }
+  if(!confirm(`「${name}」をメンバーから削除する？`)) return;
+  if(LIVE && sb){ await sb.from("members").delete().eq("id", id); }
+  else { members = members.filter(x=>x.id!==id); saveMembers(); }
+  if(currentUser===name){ currentUser = memberNames().filter(n=>n!==name)[0] || ""; localStorage.setItem("revotasks_user", currentUser); }
+  await refreshMembers();
+}
+
+/* ============ スコア ============ */
+function scoreOf(t){
+  if([t.impact,t.urgency,t.self_factor,t.effort].some(v=>v==null)) return null;
+  return Math.round(((t.impact * t.urgency * t.self_factor) / t.effort) * 10) / 10;
+}
+const isTriaged = t => scoreOf(t) !== null;
+const scoreLabel = t => { const s = scoreOf(t); return s==null ? "—" : s; };
+const responsibleOf = t => t.assignee || t.owner;
+const isDeep = t => (t.effort||0) >= 3;
+
+/* ============ 状態 ============ */
+let currentUser = localStorage.getItem("revotasks_user") || "";
+let view = "inbox";
+let teamByMode = false;
+let expanded = new Set();
+
+/* ============ レンダリング ============ */
+const app = document.getElementById("app");
+const esc = s => (s||"").replace(/[&<>"]/g, c=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+
+function render(){
+  document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active", t.dataset.view===view));
+  const mine = tasks.filter(t=>responsibleOf(t)===currentUser);
+  const inboxN = mine.filter(t=>t.status==="inbox").length;
+  const todayN = mine.filter(t=>t.status==="today").length;
+  const doneN = mine.filter(t=>t.status==="done").length;
+  const trashN = mine.filter(t=>t.status==="trash").length;
+  const handoffN = tasks.filter(t=>t.assigned_by===currentUser && t.assignee && t.assignee!==currentUser
+    && (t.status==="inbox"||t.status==="today")).length;
+  document.getElementById("badge-inbox").textContent = inboxN ? inboxN : "";
+  document.getElementById("badge-today").textContent = todayN ? todayN : "";
+  document.getElementById("badge-done").textContent = doneN ? doneN : "";
+  document.getElementById("badge-trash").textContent = trashN ? trashN : "";
+  document.getElementById("badge-handoff").textContent = handoffN ? handoffN : "";
+
+  if(view==="inbox") renderInbox(mine);
+  else if(view==="today") renderToday(mine);
+  else if(view==="done") renderDone(mine);
+  else if(view==="trash") renderTrash(mine);
+  else if(view==="handoff") renderHandoffs();
+  else renderTeam();
+}
+
+function renderInbox(mine){
+  const items = mine.filter(t=>t.status==="inbox");
+  let h = `<div class="section-head"><div class="ghost">01</div>
+    <div class="eyebrow">Capture &amp; Triage</div>
+    <div class="htitle">受信箱</div>
+    <div class="hsub">思いついたことは、仕分けせずまず放り込む。あとで<b>4項目のスコア</b>を付けて、自分がやるか誰かに渡すかを決める。</div>
+    <div class="formula">優先度 =（影響 × 緊急 × 自分係数）÷ 所要時間　<b>&nbsp;高いほど上に並ぶ</b></div>
+  </div>
+  <div class="capture">
+    <input id="capin" placeholder="タスクを入力してEnter…" autocomplete="off">
+    <button id="capbtn">追加</button>
+  </div>`;
+
+  if(!items.length){
+    h += `<div class="empty"><div class="mk">受信箱は空</div><div class="sub">上の欄に、頭の中にある宿題を片っ端から入れていく。</div></div>`;
+  } else {
+    h += items.map(cardHTML).join("");
+  }
+  app.innerHTML = h;
+
+  const inp = document.getElementById("capin");
+  const add = ()=>{ const v = inp.value.trim(); if(!v) return;
+    createTask({ title:v, owner:currentUser, assignee:null, status:"inbox",
+      impact:null, urgency:null, self_factor:null, effort:null, mode:null, big_rock:false });
+    inp.value=""; };
+  document.getElementById("capbtn").onclick = add;
+  inp.onkeydown = e=>{ if(e.key==="Enter") add(); };
+  bindTaskControls();
+}
+
+function segHTML(id, cur, max, gold){
+  let b=""; for(let i=1;i<=max;i++){ b+=`<button data-seg="${id}" data-val="${i}" class="${cur===i?"on":""}">${i}</button>`; }
+  return `<div class="seg ${gold?"gold":""}">${b}</div>`;
+}
+
+function triageInner(t, ctx){
+  const sc = scoreOf(t);
+  const actions = ctx==="inbox"
+    ? `<button class="btn ghostbtn" data-act="del">削除</button>
+       <button class="btn primary" data-act="promote" ${isTriaged(t)?"":"disabled style=opacity:.4"}>今日やるに入れる →</button>`
+    : `<button class="btn ghostbtn" data-act="del">削除</button>
+       <button class="btn ghostbtn" data-act="backinbox">受信箱に戻す</button>
+       <button class="btn primary" data-act="complete">完了にする ✓</button>`;
+  return `<div class="triage">
+    <div class="field"><label>影響度</label>${segHTML("impact",t.impact,5)}</div>
+    <div class="field"><label>緊急度</label>${segHTML("urgency",t.urgency,5)}</div>
+    <div class="field"><label>自分係数 ${t.self_factor?"／"+SELF_LABEL[t.self_factor]:""}</label>${segHTML("self_factor",t.self_factor,3,true)}</div>
+    <div class="field"><label>所要時間 ${t.effort?"／"+EFFORT_LABEL[t.effort]:""}</label>${segHTML("effort",t.effort,5)}</div>
+    <div class="field"><label>認知モード</label>
+      <select class="modesel" data-field="mode">
+        <option value="">選択…</option>
+        ${MODES.map(m=>`<option value="${m.id}" ${t.mode===m.id?"selected":""}>${m.label}</option>`).join("")}
+      </select>
+    </div>
+    <div class="field"><label>渡す先（担当を変更）</label>
+      <select class="owner-sel" data-field="assignee">
+        ${memberNames().map(m=>`<option value="${esc(m)}" ${responsibleOf(t)===m?"selected":""}>${esc(m)}${m===currentUser?"（自分）":" に渡す"}</option>`).join("")}
+      </select>
+    </div>
+    <div class="triage-foot">
+      <div style="display:flex;align-items:center;gap:26px;flex-wrap:wrap">
+        <div class="scorebox"><span class="lab">Score</span>${sc!=null?`<span class="val">${sc}</span>`:`<span class="na">4項目を入れると出る</span>`}</div>
+        <div class="bigrock-toggle ${t.big_rock?"on":""}" data-act="rock"><span class="box">${t.big_rock?"★":""}</span>デカい石（今日の1枠）</div>
+      </div>
+      <div class="actions">${actions}</div>
+    </div>
+  </div>`;
+}
+
+const fromMark = t => (t.assigned_by && t.assigned_by!==currentUser)
+  ? `<span class="fromchip">← ${esc(t.assigned_by)}から</span>` : "";
+
+function cardHTML(t){
+  return `<div class="card ${isTriaged(t)?"":"pending"}" data-id="${t.id}">
+    <div class="card-top">
+      <div style="flex:1;min-width:0">
+        <div class="title-row"><div class="ctitle" data-title>${esc(t.title)}</div>
+          <button class="iconbtn" data-act="rename" title="改名">✎</button></div>
+        <div class="cmeta">${modeLabel(t.mode)} ・ 追加 ${esc(t.owner)} ${fromMark(t)}</div>
+      </div>
+      <div class="owner-pill">${esc(responsibleOf(t))}</div>
+    </div>
+    ${triageInner(t,"inbox")}
+  </div>`;
+}
+
+function bindAct(node, act, fn){
+  node.querySelectorAll(`[data-act="${act}"]`).forEach(b=>{
+    if(b.disabled) return;
+    b.onclick = e=>{ e.stopPropagation(); fn(); };
+  });
+}
+function bindTaskControls(){
+  app.querySelectorAll("[data-id]").forEach(node=>{
+    const id = node.dataset.id;
+    const t = tasks.find(x=>x.id===id) || {};
+    node.querySelectorAll("[data-seg]").forEach(b=>{
+      b.onclick = ()=> patchTask(id, { [b.dataset.seg]: Number(b.dataset.val) });
+    });
+    node.querySelectorAll("[data-field]").forEach(sel=>{
+      sel.onchange = ()=>{
+        const f = sel.dataset.field;
+        if(f==="assignee"){ const v = sel.value; if(v===currentUser) takeBack(id); else handoffTask(id, v); }
+        else patchTask(id, { [f]: sel.value || null });
+      };
+    });
+    bindAct(node, "rock",      ()=> patchTask(id, { big_rock: !t.big_rock }));
+    bindAct(node, "promote",   ()=> patchTask(id, { status:"today" }));
+    bindAct(node, "takeback",  ()=> takeBack(id));
+    bindAct(node, "complete",  ()=> completeTask(id));
+    bindAct(node, "restore",   ()=> patchTask(id, { status:"today", done_at:null }));
+    bindAct(node, "backinbox", ()=> patchTask(id, { status:"inbox" }));
+    bindAct(node, "del",       ()=> trashTask(id));
+    bindAct(node, "untrash",   ()=> untrashTask(id));
+    bindAct(node, "harddel",   ()=>{ if(confirm("このタスクを完全に削除する？（元に戻せません）")) deleteTask(id); });
+    bindAct(node, "expand",    ()=>{ expanded.has(id) ? expanded.delete(id) : expanded.add(id); render(); });
+    bindAct(node, "rename",    ()=> startRename(node, id));
+  });
+}
+
+function renderToday(mine){
+  let list = mine.filter(t=>t.status==="today")
+    .sort((a,b)=> (b.big_rock-a.big_rock) || (scoreOf(b)-scoreOf(a)));
+
+  // capを反映：デカい石→深3→軽5を「今日やる」枠、残りは「はみ出し」
+  let deep=0, light=0;
+  list.forEach(t=>{
+    if(t.big_rock){ t._cap=true; return; }
+    if(isDeep(t)){ t._cap = (deep < CONFIG.TODAY_DEEP_LIMIT); if(t._cap) deep++; }
+    else { t._cap = (light < CONFIG.TODAY_LIGHT_LIMIT); if(t._cap) light++; }
+  });
+  const inCap  = list.filter(t=>t._cap);
+  const over   = list.filter(t=>!t._cap);
+
+  let h = `<div class="section-head"><div class="ghost">02</div>
+    <div class="eyebrow">Do the top one</div>
+    <div class="htitle">今日やる</div>
+    <div class="hsub">スコア順に自動で並ぶ。一番上から潰すだけ。<b>デカい石</b>は朝イチ、上限を超えた分は明日か委任を検討する。</div>
+  </div>`;
+
+  if(!inCap.length){
+    h += `<div class="empty"><div class="mk">今日の札はまだ無い</div><div class="sub">受信箱でスコアを付けて「今日やるに入れる」を押す。</div></div>`;
+  } else {
+    h += `<div class="slabel">今日やる <span class="cap">上限 深${CONFIG.TODAY_DEEP_LIMIT} ／ 軽${CONFIG.TODAY_LIGHT_LIMIT}</span></div>`;
+    h += inCap.map((t,i)=>trowHTML(t,i+1)).join("");
+    if(over.length){
+      h += `<div class="slabel">はみ出し <span class="cap">明日 or 委任へ</span></div>`;
+      h += over.map((t,i)=>trowHTML(t,inCap.length+i+1,true)).join("");
+    }
+  }
+  app.innerHTML = h;
+  bindTaskControls();
+}
+
+function trowHTML(t, rank, over){
+  const sc = scoreLabel(t);
+  const open = expanded.has(t.id);
+  return `<div class="titem" data-id="${t.id}">
+    <div class="trow ${t.big_rock?"rock":""} ${over?"over":""} ${open?"open":""}">
+      <div class="rank">${rank}</div>
+      <div class="tbody">
+        <div class="tt" data-title>${esc(t.title)}</div>
+        <div class="tm">
+          <span class="modechip">${modeLabel(t.mode)}</span>
+          <span>${EFFORT_LABEL[t.effort]||""} ・ ${SELF_LABEL[t.self_factor]||""}</span>
+          ${t.big_rock?`<span class="rockflag">★ 朝イチ</span>`:""}
+          ${fromMark(t)}
+        </div>
+      </div>
+      <button class="iconbtn" data-act="rename" title="改名">✎</button>
+      <div class="tscore">${sc}</div>
+      <button class="chev" data-act="expand" title="${open?"閉じる":"編集"}">${open?"▲":"▾"}</button>
+      <button class="tdone" data-act="complete" title="完了">✓</button>
+    </div>
+    ${open ? `<div class="exp-panel">${triageInner(t,"today")}</div>` : ""}
+  </div>`;
+}
+
+function renderTeam(){
+  let h = `<div class="section-head"><div class="ghost">03</div>
+    <div class="eyebrow">Everyone's board</div>
+    <div class="htitle">チーム全体</div>
+    <div class="hsub">幹部それぞれの「今日やる」をスコア順で横並びに。誰が何に手を取られているか、渡し先の余白があるかが一目で分かる。</div>
+  </div>
+  <div class="teamctl">
+    <label class="bigrock-toggle ${teamByMode?"on":""}" id="bymode"><span class="box">${teamByMode?"✓":""}</span>認知モードで色分け表示</label>
+  </div>
+  <div class="teamgrid">`;
+
+  h += memberNames().map(m=>{
+    const list = tasks.filter(t=>responsibleOf(t)===m && t.status==="today")
+      .sort((a,b)=>(b.big_rock-a.big_rock)||(scoreOf(b)-scoreOf(a)));
+    const rows = list.length ? list.map(t=>`
+      <div class="ttask ${t.big_rock?"rock":""}">
+        <span class="n">${t.big_rock?"★ ":""}${esc(t.title)}${teamByMode?` <span style="color:var(--faint)">· ${modeLabel(t.mode)}</span>`:""}</span>
+        <span class="s">${scoreLabel(t)}</span>
+      </div>`).join("") : `<div class="teamempty">今日の札なし</div>`;
+    return `<div class="teamcol">
+      <h3>${esc(m)} <span class="n">${list.length}件</span></h3>
+      <div class="div"></div>${rows}
+    </div>`;
+  }).join("");
+
+  h += `</div>`;
+  app.innerHTML = h;
+  const bm = document.getElementById("bymode");
+  if(bm) bm.onclick = ()=>{ teamByMode = !teamByMode; render(); };
+}
+
+function renderDone(mine){
+  const items = mine.filter(t=>t.status==="done")
+    .sort((a,b)=> new Date(b.done_at||0) - new Date(a.done_at||0));
+  let h = `<div class="section-head"><div class="ghost">04</div>
+    <div class="eyebrow">Archive</div>
+    <div class="htitle">完了</div>
+    <div class="hsub">終わったタスクは消えずに全部ここに残る。間違って完了したものは<b>戻す</b>で今日やるへ復帰、本当に不要なものだけ削除する。</div>
+  </div>`;
+  if(!items.length){
+    h += `<div class="empty"><div class="mk">まだ完了はゼロ</div><div class="sub">今日やるで ✓ を押すと、ここに積み上がっていく。</div></div>`;
+  } else {
+    h += `<div class="slabel">完了した ${items.length} 件 <span class="cap">新しい順</span></div>`;
+    h += items.map(doneRowHTML).join("");
+  }
+  app.innerHTML = h;
+  bindTaskControls();
+}
+
+function doneRowHTML(t){
+  const sc = scoreOf(t);
+  const d = t.done_at ? new Date(t.done_at) : null;
+  const when = d ? `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}` : "";
+  return `<div class="donerow" data-id="${t.id}">
+    <div class="dcheck">✓</div>
+    <div class="tbody">
+      <div class="tt done"><span data-title>${esc(t.title)}</span></div>
+      <div class="tm">
+        <span class="modechip">${modeLabel(t.mode)}</span>
+        ${when?`<span>完了 ${when}</span>`:""}
+        ${sc!=null?`<span>score ${sc}</span>`:""}
+      </div>
+    </div>
+    <button class="btn ghostbtn" data-act="restore">戻す</button>
+    <button class="iconbtn" data-act="del" title="削除">✕</button>
+  </div>`;
+}
+
+function renderTrash(mine){
+  const items = mine.filter(t=>t.status==="trash")
+    .sort((a,b)=> new Date(b.trashed_at||0) - new Date(a.trashed_at||0));
+  let h = `<div class="section-head"><div class="ghost">05</div>
+    <div class="eyebrow">Recycle bin</div>
+    <div class="htitle">ゴミ箱</div>
+    <div class="hsub">削除したタスクは一旦ここに入る。<b>戻す</b>で元いた場所に復帰。<b>30日</b>を過ぎたものは自動で消える。今すぐ消したいものだけ「完全に削除」。</div>
+  </div>`;
+  if(!items.length){
+    h += `<div class="empty"><div class="mk">ゴミ箱は空</div><div class="sub">タスクの「削除」を押すと、まずここに移る。</div></div>`;
+  } else {
+    h += `<div class="slabel">ゴミ箱 ${items.length} 件 <span class="cap">30日で自動消去</span>
+      <button class="btn ghostbtn" id="emptybin" style="margin-left:auto">ゴミ箱を空にする</button></div>`;
+    h += items.map(trashRowHTML).join("");
+  }
+  app.innerHTML = h;
+  bindTaskControls();
+  const eb = document.getElementById("emptybin");
+  if(eb) eb.onclick = emptyTrash;
+}
+
+function trashRowHTML(t){
+  const d = t.trashed_at ? new Date(t.trashed_at) : null;
+  const when = d ? `${d.getMonth()+1}/${d.getDate()}` : "";
+  const back = { inbox:"受信箱", today:"今日やる", done:"完了" }[t.prev_status] || "受信箱";
+  return `<div class="donerow trash" data-id="${t.id}">
+    <div class="dcheck">✕</div>
+    <div class="tbody">
+      <div class="tt done"><span data-title>${esc(t.title)}</span></div>
+      <div class="tm">
+        <span class="modechip">${modeLabel(t.mode)}</span>
+        ${when?`<span>削除 ${when}</span>`:""}
+        <span>戻す先：${back}</span>
+      </div>
+    </div>
+    <button class="btn ghostbtn" data-act="untrash">戻す</button>
+    <button class="iconbtn" data-act="harddel" title="完全に削除">✕</button>
+  </div>`;
+}
+
+function renderHandoffs(){
+  const items = tasks.filter(t=> t.assigned_by===currentUser && t.assignee && t.assignee!==currentUser && t.status!=="trash")
+    .sort((a,b)=> new Date(b.assigned_at||0) - new Date(a.assigned_at||0));
+  let h = `<div class="section-head"><div class="ghost">HO</div>
+    <div class="eyebrow">Handed off</div>
+    <div class="htitle">渡した</div>
+    <div class="hsub">自分が他の幹部に振ったタスクの一覧。<b>誰にいつ</b>渡したかと、今どこまで進んでいるか（未着手 / 対応中 / 完了）が分かる。必要なら取り戻せる。</div>
+  </div>`;
+  if(!items.length){
+    h += `<div class="empty"><div class="mk">まだ誰にも振っていない</div><div class="sub">タスクを開いて「渡す先」で相手を選ぶと、ここに積まれて進捗を追える。</div></div>`;
+  } else {
+    const active = items.filter(t=>t.status!=="done").length;
+    h += `<div class="slabel">渡した ${items.length} 件 <span class="cap">対応中 ${active} 件・新しい順</span></div>`;
+    h += items.map(handoffRowHTML).join("");
+  }
+  app.innerHTML = h;
+  bindTaskControls();
+}
+
+function handoffRowHTML(t){
+  const d = t.assigned_at ? new Date(t.assigned_at) : null;
+  const when = d ? `${d.getMonth()+1}/${d.getDate()}` : "";
+  const prog = { inbox:["未着手","muted"], today:["対応中","gold"], done:["完了","done"] }[t.status] || ["未着手","muted"];
+  return `<div class="donerow" data-id="${t.id}">
+    <div class="dcheck" style="background:var(--panelgold);color:var(--gold)">→</div>
+    <div class="tbody">
+      <div class="tt"><span data-title>${esc(t.title)}</span></div>
+      <div class="tm">
+        <span class="tomark">→ ${esc(t.assignee)}</span>
+        ${when?`<span>${when} に渡した</span>`:""}
+        <span class="modechip">${modeLabel(t.mode)}</span>
+      </div>
+    </div>
+    <span class="hbadge ${prog[1]}">${prog[0]}</span>
+    <button class="btn ghostbtn" data-act="takeback">取り戻す</button>
+  </div>`;
+}
+
+/* ============ 起動 ============ */
+async function refresh(){ await fetchTasks(); if(await purgeOldTrash()) await fetchTasks(); render(); }
+
+function initUserPicker(){
+  const sel = document.getElementById("userpick");
+  sel.innerHTML = memberNames().map(m=>`<option ${m===currentUser?"selected":""}>${esc(m)}</option>`).join("");
+  sel.onchange = ()=>{ currentUser = sel.value; localStorage.setItem("revotasks_user", currentUser); render(); };
+}
+
+function renderMembers(){
+  const box = document.getElementById("memberlist"); if(!box) return;
+  box.innerHTML = members.map(m=>`
+    <div class="memrow" data-mid="${m.id}">
+      <input class="memname" value="${esc(m.name)}" autocomplete="off">
+      <button class="memdel" title="削除">✕</button>
+    </div>`).join("");
+  box.querySelectorAll(".memrow").forEach(row=>{
+    const mid = row.dataset.mid;
+    const inp = row.querySelector(".memname");
+    const orig = inp.value;
+    const save = ()=>{ const v = inp.value.trim(); if(v && v!==orig) renameMember(mid, v); };
+    inp.onkeydown = e=>{ if(e.key==="Enter"){ e.preventDefault(); inp.blur(); } };
+    inp.onblur = save;
+    row.querySelector(".memdel").onclick = ()=> removeMember(mid);
+  });
+}
+function openSettings(){ renderMembers(); document.getElementById("settings").hidden = false; }
+function closeSettings(){ document.getElementById("settings").hidden = true; }
+
+const TASK_COLS = ["id","title","owner","assignee","status","impact","urgency","self_factor","effort","mode","big_rock","prev_status","trashed_at","assigned_by","assigned_at","created_at","done_at"];
+function sanitizeTask(t){ const o={}; TASK_COLS.forEach(k=>{ if(t[k]!==undefined) o[k]=t[k]; }); return o; }
+function sanitizeMember(m){ return { id:m.id, name:m.name, sort:m.sort??0 }; }
+
+function exportData(){
+  const payload = { app:"revotasks", version:1, exported_at:new Date().toISOString(),
+    members: members.map(sanitizeMember), tasks: tasks.map(sanitizeTask) };
+  const blob = new Blob([JSON.stringify(payload,null,2)], { type:"application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `revotasks-backup-${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+}
+async function importData(file){
+  let data; try{ data = JSON.parse(await file.text()); }catch(e){ alert("ファイルを読み込めなかった。"); return; }
+  if(!data || !Array.isArray(data.tasks) || !Array.isArray(data.members)){ alert("これはバックアップファイルではないみたい。"); return; }
+  if(!confirm(`このバックアップを読み込む？\nメンバー ${data.members.length} 人・タスク ${data.tasks.length} 件を反映する。`)) return;
+  const mem = data.members.map(sanitizeMember);
+  const tsk = data.tasks.map(sanitizeTask);
+  if(LIVE && sb){
+    if(mem.length){ const { error:e1 } = await sb.from("members").upsert(mem); if(e1) console.error(e1); }
+    if(tsk.length){ const { error:e2 } = await sb.from("tasks").upsert(tsk); if(e2) console.error(e2); }
+  } else {
+    members = mem; saveMembers();
+    demoSave(tsk);
+  }
+  await refreshMembers();
+  alert("読み込み完了。");
+}
+
+document.querySelectorAll(".tab").forEach(t=> t.onclick = ()=>{ view = t.dataset.view; render(); });
+document.getElementById("opensettings").onclick = openSettings;
+document.getElementById("closesettings").onclick = closeSettings;
+document.getElementById("settings").onclick = e=>{ if(e.target.id==="settings") closeSettings(); };
+document.getElementById("exportbtn").onclick = exportData;
+document.getElementById("importbtn").onclick = ()=> document.getElementById("importfile").click();
+document.getElementById("importfile").onchange = e=>{ const f=e.target.files[0]; if(f) importData(f); e.target.value=""; };
+(function wireAdd(){
+  const inp = document.getElementById("newmember");
+  const go = ()=>{ const v = inp.value.trim(); if(v){ addMember(v); inp.value=""; } };
+  document.getElementById("addmember").onclick = go;
+  inp.onkeydown = e=>{ if(e.key==="Enter") go(); };
+})();
+
+function wireSync(){
+  if(LIVE && sb){
+    // 他の幹部の更新を開いている画面へ即反映
+    sb.channel("tasks-rt").on("postgres_changes",{ event:"*", schema:"public", table:"tasks" }, ()=>refresh()).subscribe();
+    sb.channel("members-rt").on("postgres_changes",{ event:"*", schema:"public", table:"members" }, ()=>refreshMembers()).subscribe();
+    // スマホ対策：画面に戻ってきた瞬間・再接続時に必ず最新化
+    const pull = ()=>{ if(document.visibilityState==="visible") refresh(); };
+    document.addEventListener("visibilitychange", pull);
+    window.addEventListener("focus", pull);
+    window.addEventListener("online", ()=>refresh());
+  } else {
+    // デモ：同一ブラウザの別タブ間だけ同期
+    window.addEventListener("storage", e=>{ if(e.key===DEMO_KEY || e.key===MEMBERS_KEY) { fetchMembers().then(()=>{ ensureUser(); initUserPicker(); refresh(); }); } });
+  }
+}
+
+(async function boot(){
+  document.getElementById("statustext").textContent = LIVE ? "同期中" : "demo";
+  document.getElementById("statusdot").classList.toggle("live", LIVE);
+  await fetchMembers();
+  ensureUser();
+  initUserPicker();
+  wireSync();
+  await refresh();
+})();
+</script>
+</body>
+</html>
